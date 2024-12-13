@@ -1,11 +1,11 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis;
-using System.Text.Json.Serialization;
-using FluentJsonConverter.ExtensionMethods;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace FluentJsonConverter;
 
 internal static class RulesParser
 {
-    public static RulesContainer ParseRules(IMethodSymbol methodSymbol, SemanticModel semanticModel, IEnumerable<IPropertySymbol> allProperties)
+    public static RulesContainer ParseRules(IMethodSymbol methodSymbol, SemanticModel semanticModel, IEnumerable<IPropertySymbol> allProperties, SourceProductionContext context)
     {
         var rulesContainer = new RulesContainer();
 
@@ -16,7 +16,13 @@ internal static class RulesParser
         if (syntaxReference?.GetSyntax() is not MethodDeclarationSyntax methodSyntax)
             return rulesContainer;
 
-        foreach (var invocation in methodSyntax.Body?.DescendantNodes().OfType<InvocationExpressionSyntax>() ?? Enumerable.Empty<InvocationExpressionSyntax>())
+        // Handle both block and expression-bodied methods
+        SyntaxNode? methodBody = methodSyntax.Body ?? (SyntaxNode?)methodSyntax.ExpressionBody;
+
+        if (methodBody == null)
+            return rulesContainer;
+
+        foreach (var invocation in methodBody.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
             if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
             {
@@ -35,7 +41,7 @@ internal static class RulesParser
                         var propertySymbol = semanticModel.GetSymbolInfo(propertyAccess).Symbol as IPropertySymbol;
                         var propertyType = propertySymbol?.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "unknown";
 
-                        var configuration = ParseConfiguration(configureAction, propertyName, propertyType);
+                        var configuration = ParseConfiguration(configureAction, propertyName, propertyType, semanticModel, context);
 
                         rulesContainer.AddOrUpdateRule(new PropertyRule
                         {
@@ -71,7 +77,8 @@ internal static class RulesParser
         return rulesContainer;
     }
 
-    private static PropertyConfiguration ParseConfiguration(ExpressionSyntax configureAction,string propertyName, string propertyType)
+    private static PropertyConfiguration ParseConfiguration(ExpressionSyntax configureAction, string propertyName, string propertyType, SemanticModel semanticModel,
+        SourceProductionContext context)
     {
         var configuration = new PropertyConfiguration();
 
@@ -86,75 +93,39 @@ internal static class RulesParser
                 {
                     var methodName = memberAccess.Name.Identifier.Text;
 
-                    if (methodName == "Rename")
+                    switch (methodName)
                     {
-                        var renameArg = currentInvocation.ArgumentList.Arguments.FirstOrDefault();
-                        if (renameArg?.Expression is LiteralExpressionSyntax literal)
-                        {
-                            configuration.Rename = literal.Token.ValueText;
-                        }
-                    }
-                    else if (methodName == "Ignore")
-                    {
-                        configuration.Ignore = true;
-                    }
-                    else if (methodName == "UseConverter")
-                    {
-                       
+                        case "Rename":
+                            HandleRename(currentInvocation, configuration);
+                            break;
 
-                        if (memberAccess.Name is GenericNameSyntax genericName &&
-                            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
-                        {
-                            configuration.ReadConverter = typeArgument.ToString();
-                            configuration.WriteConverter = typeArgument.ToString();
-                        }
-                    }
-                    else if (methodName == "UseReadConverter")
-                    {
-                        if (memberAccess.Name is GenericNameSyntax genericName &&
-                            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
-                        {
-                            configuration.ReadConverter = typeArgument.ToString();
-                        }
-                    }
-                    else if (methodName == "UseWriteConverter")
-                    {
-                        if (memberAccess.Name is GenericNameSyntax genericName &&
-                            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
-                        {
-                            configuration.WriteConverter = typeArgument.ToString();
-                        }
-                    }
-                    else if (methodName == "Read")
-                    {
-                       
+                        case "Ignore":
+                            configuration.Ignore = true;
+                            break;
 
-                            var readArg = currentInvocation.ArgumentList.Arguments.FirstOrDefault();
-                        if (readArg?.Expression is LambdaExpressionSyntax readLambda)
-                        {
-                            string parameterName = readLambda switch
-                            {
-                                SimpleLambdaExpressionSyntax simpleLambda => simpleLambda.Parameter.Identifier.Text,
-                                ParenthesizedLambdaExpressionSyntax parenthesizedLambda => parenthesizedLambda.ParameterList.Parameters.FirstOrDefault()?.Identifier.Text ?? "reader",
-                                _ => "reader"
-                            };
+                        case "UseConverter":
+                            AnalyzeAndValidateConverter(memberAccess, semanticModel, context);
+                            HandleUseConverter(memberAccess, configuration);
+                            break;
 
-                                // Replace the parameter name with "reader" in the lambda body
-                                var logic = GenerateInlineReadHelperMethod(propertyType, propertyName, parameterName, readLambda.Body.ToString());
+                        case "UseReadConverter":
+                            HandleUseReadConverter(memberAccess, configuration);
+                            break;
 
-                                // Wrap the logic in a complete method body
-                                configuration.InlineReadLogic = logic;
-                            
-                        }
-                    }
-                    else if (methodName == "Write")
-                    {
-                        var readArg = currentInvocation.ArgumentList.Arguments.FirstOrDefault();
-                        if (readArg?.Expression is LambdaExpressionSyntax readLambda)
-                        {
-                            // Extract the body of the lambda expression
-                            configuration.InlineWriteLogic = readLambda.Body.ToString();
-                        }
+                        case "UseWriteConverter":
+                            HandleUseWriteConverter(memberAccess, configuration);
+                            break;
+
+                        case "Read":
+                            HandleReadLambda(currentInvocation, propertyName, propertyType, configuration);
+                            break;
+
+                        case "Write":
+                            HandleWriteLambda(currentInvocation, propertyName, propertyType, configuration);
+                            break;
+
+                        default:
+                            throw new NotSupportedException($"Unsupported method: {methodName}");
                     }
 
                     currentInvocation = memberAccess.Expression as InvocationExpressionSyntax;
@@ -169,20 +140,192 @@ internal static class RulesParser
         return configuration;
     }
 
-    private static string GenerateInlineReadHelperMethod(string targetPropertyType, string propertyName, string parameterName, string inlineLogic)
+    private static void HandleRename(InvocationExpressionSyntax invocation, PropertyConfiguration configuration)
     {
-        return $@"
-            private {targetPropertyType} Read_{propertyName}(ref Utf8JsonReader {parameterName})
-            {inlineLogic}
-            ";
+        var renameArg = invocation.ArgumentList.Arguments.FirstOrDefault();
+        if (renameArg?.Expression is LiteralExpressionSyntax literal)
+        {
+            configuration.Rename = literal.Token.ValueText;
+        }
     }
 
-    private static IEnumerable<Diagnostic> AnalyzeUseConverter(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    private static void HandleUseConverter(MemberAccessExpressionSyntax memberAccess, PropertyConfiguration configuration)
+    {
+        if (memberAccess.Name is GenericNameSyntax genericName &&
+            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
+        {
+            configuration.ReadConverter = typeArgument.ToString();
+            configuration.WriteConverter = typeArgument.ToString();
+        }
+    }
+
+    private static void HandleUseReadConverter(MemberAccessExpressionSyntax memberAccess, PropertyConfiguration configuration)
+    {
+        if (memberAccess.Name is GenericNameSyntax genericName &&
+            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
+        {
+            configuration.ReadConverter = typeArgument.ToString();
+        }
+    }
+
+    private static void HandleUseWriteConverter(MemberAccessExpressionSyntax memberAccess, PropertyConfiguration configuration)
+    {
+        if (memberAccess.Name is GenericNameSyntax genericName &&
+            genericName.TypeArgumentList.Arguments.FirstOrDefault() is TypeSyntax typeArgument)
+        {
+            configuration.WriteConverter = typeArgument.ToString();
+        }
+    }
+
+    private static void HandleReadLambda(InvocationExpressionSyntax invocation, string propertyName, string propertyType, PropertyConfiguration configuration)
+    {
+        var readArg = invocation.ArgumentList.Arguments.FirstOrDefault();
+        if (readArg?.Expression is LambdaExpressionSyntax readLambda)
+        {
+            var parameterName = GetLambdaParameterAndBody(readLambda, "reader").ParameterName;
+
+            var logic = GenerateInlineReadHelperMethod(propertyType, propertyName, parameterName, readLambda.Body);
+            configuration.InlineReadLogic = logic;
+        }
+    }
+
+    private static void HandleWriteLambda(InvocationExpressionSyntax invocation, string propertyName, string propertyType, PropertyConfiguration configuration)
+    {
+        var writeArg = invocation.ArgumentList.Arguments.FirstOrDefault();
+        if (writeArg?.Expression is LambdaExpressionSyntax writeLambda)
+        {
+            var parameterNames = GetWriteLambdaParameterAndBody(writeLambda, "writer").ParameterNames;
+            var logic = GenerateInlineWriteHelperMethod(propertyType, propertyName, parameterNames, writeLambda.Body);
+            configuration.InlineWriteLogic = logic;
+        }
+    }
+
+    private static string GenerateInlineReadHelperMethod(string targetPropertyType, string propertyName, string parameterName, SyntaxNode lambdaBody)
+    {
+        string bodyLogic;
+
+        if (lambdaBody is BlockSyntax block)
+        {
+            // Extract the logic inside the block directly (removes outer braces)
+            bodyLogic = block.Statements.ToFullString();
+        }
+        else if (lambdaBody is ExpressionSyntax expression)
+        {
+            // Directly use the expression with a return statement
+            bodyLogic = $"return {expression.ToFullString()};";
+        }
+        else
+        {
+            throw new NotSupportedException($"Unsupported lambda body type: {lambdaBody.GetType().Name}");
+        }
+
+        return $@"
+        private {targetPropertyType} Read_{propertyName}(ref Utf8JsonReader {parameterName})
+        {{
+            {bodyLogic}
+        }}
+    ".Trim();
+    }
+
+    private static string GenerateInlineWriteHelperMethod(string targetPropertyType, string propertyName, List<string> parameterName, SyntaxNode lambdaBody)
+    {
+        string bodyLogic;
+
+        if (lambdaBody is BlockSyntax block)
+        {
+            // Extract the logic inside the block directly (removes outer braces)
+            bodyLogic = block.Statements.ToFullString();
+        }
+        else if (lambdaBody is ExpressionSyntax expression)
+        {
+            // Directly use the expression with a return statement
+            bodyLogic = $"return {expression.ToFullString()};";
+        }
+        else
+        {
+            throw new NotSupportedException($"Unsupported lambda body type: {lambdaBody.GetType().Name}");
+        }
+
+        return $@"
+        private void Write_{propertyName}(Utf8JsonWriter {parameterName[0]}, {targetPropertyType} {parameterName[1]})
+        {{
+            {bodyLogic}
+        }}
+    ".Trim();
+    }
+
+    private static (string ParameterName, string Body) GetLambdaParameterAndBody(LambdaExpressionSyntax lambda, string defaultParameterName)
+    {
+        string parameterName = lambda switch
+        {
+            SimpleLambdaExpressionSyntax simpleLambda => simpleLambda.Parameter.Identifier.Text,
+            ParenthesizedLambdaExpressionSyntax parenthesizedLambda => parenthesizedLambda.ParameterList.Parameters.FirstOrDefault()?.Identifier.Text ?? defaultParameterName,
+            _ => defaultParameterName
+        };
+
+        string body = lambda.Body.ToFullString();
+        return (parameterName, body);
+    }
+
+    private static (List<string> ParameterNames, string Body) GetWriteLambdaParameterAndBody(LambdaExpressionSyntax lambda, string defaultParameterName)
+    {
+        var parameterNames = new List<string>();
+
+        switch (lambda)
+        {
+            case SimpleLambdaExpressionSyntax simpleLambda:
+            {
+                parameterNames.Add(simpleLambda.Parameter.Identifier.Text);
+                break;
+            }
+            case ParenthesizedLambdaExpressionSyntax parenthesizedLambda:
+            {
+                if (parenthesizedLambda.ParameterList.Parameters.Count > 0)
+                {
+                    foreach (var parameter in parenthesizedLambda.ParameterList.Parameters)
+                    {
+                        parameterNames.Add(parameter.Identifier.Text);
+                    }
+                }
+                else
+                {
+                    parameterNames.Add(defaultParameterName);
+                }
+
+
+                break;
+            }
+            default:
+            {
+                parameterNames.Add(defaultParameterName);
+                break;
+            }
+
+        }
+
+
+        string body = lambda.Body.ToFullString();
+        return (parameterNames, body);
+    }
+
+    private static void AnalyzeAndValidateConverter(MemberAccessExpressionSyntax memberAccess, SemanticModel semanticModel, SourceProductionContext context)
+    {
+        // Validate the converter and report diagnostics if needed
+        var diagnostics = AnalyzeUseConverter(memberAccess.Parent as InvocationExpressionSyntax, semanticModel);
+        foreach (var diagnostic in diagnostics)
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
+    }
+
+    private static IEnumerable<Diagnostic> AnalyzeUseConverter(InvocationExpressionSyntax? invocation, SemanticModel semanticModel)
     {
         var diagnostics = new List<Diagnostic>();
 
+        if (invocation == null) return diagnostics;
+
         var methodSymbol = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
-        if (methodSymbol == null || methodSymbol.Name != "UseConverter")
+        if (methodSymbol == null)
             return diagnostics;
 
         var typeArgument = methodSymbol.TypeArguments.FirstOrDefault();
@@ -195,11 +338,6 @@ internal static class RulesParser
         if (typeArgument.IsAbstract)
         {
             diagnostics.Add(CreateDiagnostic(invocation, $"The specified converter '{typeArgument.Name}' is abstract and cannot be used."));
-        }
-        
-        if (!typeArgument.InheritsFrom(typeof(JsonConverter<>)))
-        {
-            diagnostics.Add(CreateDiagnostic(invocation, $"The specified converter '{typeArgument.Name}' does not inherit from JsonConverter<T>."));
         }
 
         return diagnostics;

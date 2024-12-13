@@ -1,5 +1,7 @@
 ﻿using System.Text;
 
+namespace FluentJsonConverter;
+
 internal static class CodeGenerator
 {
     public static string GenerateReadMethod(string targetTypeName, RulesContainer rulesContainer)
@@ -70,5 +72,59 @@ internal static class CodeGenerator
         readMethod.AppendLine("}");
 
         return helperMethods.ToString() + readMethod.ToString();
+    }
+
+
+    public static string GenerateWriteMethod(string targetTypeName, RulesContainer rulesContainer)
+    {
+        var writeMethod = new StringBuilder();
+        var helperMethods = new StringBuilder();
+
+        writeMethod.AppendLine($"public override void Write(Utf8JsonWriter writer, {targetTypeName} value, JsonSerializerOptions options)");
+        writeMethod.AppendLine("{");
+        writeMethod.AppendLine("    if (value == null) {");
+        writeMethod.AppendLine("        throw new ArgumentNullException(nameof(value));");
+        writeMethod.AppendLine("    }");
+        writeMethod.AppendLine();
+        writeMethod.AppendLine("    writer.WriteStartObject();");
+        writeMethod.AppendLine();
+
+        foreach (var rule in rulesContainer.GetRules())
+        {
+            
+            if (rule.Ignore)
+            {
+                writeMethod.AppendLine($"    // Property: {rule.TargetPropertyName} -> Ignored");
+                // Skip ignored properties
+                continue;
+            }
+            writeMethod.AppendLine($"    // Property: {rule.TargetPropertyName}");
+            if (!string.IsNullOrEmpty(rule.InlineWriteLogic))
+            {
+                // Inline custom logic
+                helperMethods.AppendLine(rule.InlineWriteLogic);
+                writeMethod.AppendLine($"    writer.WritePropertyName(\"{rule.JsonPropertyName}\");");
+                writeMethod.AppendLine($"    Write_{rule.TargetPropertyName}(writer, value.{rule.TargetPropertyName});");
+            }
+            else if (!string.IsNullOrEmpty(rule.WriteConverter))
+            {
+                // Use custom converter for writing
+                writeMethod.AppendLine($"    var custom_{rule.TargetPropertyName}_WriteConverter = new {rule.WriteConverter}();");
+                writeMethod.AppendLine($"    custom_{rule.TargetPropertyName}_WriteConverter.Write(writer, value.{rule.TargetPropertyName}, options);");
+            }
+            else
+            {
+                // Default serialization
+                writeMethod.AppendLine($"    writer.WritePropertyName(\"{rule.JsonPropertyName}\");");
+                writeMethod.AppendLine($"    JsonSerializer.Serialize(writer, value.{rule.TargetPropertyName}, options);");
+            }
+
+            writeMethod.AppendLine();
+        }
+
+        writeMethod.AppendLine("    writer.WriteEndObject();");
+        writeMethod.AppendLine("}");
+
+        return helperMethods.ToString() + writeMethod.ToString();
     }
 }

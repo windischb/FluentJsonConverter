@@ -1,12 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentJsonConverter.Abstractions", "FluentJsonConverter.Abstractions\FluentJsonConverter.Abstractions.csproj", "{FF8780D3-62DB-44EE-97A0-6B0E752F6919}"
-EndProject
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35527.113
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{5F2477D8-3822-4413-AE5B-DFF9C6458B3A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentJsonConverter", "FluentJsonConverter\FluentJsonConverter.csproj", "{C3BA6D8E-766D-46BB-8EC0-EECEF81202EE}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{4953B3F9-E996-40BF-B006-E7D44A2DCBA3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,10 +13,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{FF8780D3-62DB-44EE-97A0-6B0E752F6919}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FF8780D3-62DB-44EE-97A0-6B0E752F6919}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FF8780D3-62DB-44EE-97A0-6B0E752F6919}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FF8780D3-62DB-44EE-97A0-6B0E752F6919}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5F2477D8-3822-4413-AE5B-DFF9C6458B3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5F2477D8-3822-4413-AE5B-DFF9C6458B3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5F2477D8-3822-4413-AE5B-DFF9C6458B3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -26,9 +21,8 @@ Global
 		{C3BA6D8E-766D-46BB-8EC0-EECEF81202EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C3BA6D8E-766D-46BB-8EC0-EECEF81202EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C3BA6D8E-766D-46BB-8EC0-EECEF81202EE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4953B3F9-E996-40BF-B006-E7D44A2DCBA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4953B3F9-E996-40BF-B006-E7D44A2DCBA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4953B3F9-E996-40BF-B006-E7D44A2DCBA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4953B3F9-E996-40BF-B006-E7D44A2DCBA3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal

@@ -17,35 +17,7 @@ public class FluentJsonConverterConfigTests
 
         Assert.Equal("localhost:1433", deserializedData.Destination);
         Assert.Equal(true, deserializedData.Direct);
+        Assert.Equal(null, deserializedData.ServiceName);
     }
-    //
-    // [Fact]
-    // public void Ignore_Should_Add_Property_To_Ignored_List()
-    // {
-    //     // Arrange
-    //     var config = new FluentJsonConverterConfig<TestData>();
-    //
-    //     // Act
-    //     var updatedConfig = config.Ignore(c => c.IsActive);
-    //
-    //     // Assert
-    //     updatedConfig.IgnoredProperties.Should().Contain(nameof(TestData.IsActive));
-    // }
-    //
-    // [Fact]
-    // public void Configuration_Should_Be_Immutable()
-    // {
-    //     // Arrange
-    //     var baseConfig = new FluentJsonConverterConfig<TestData>()
-    //         .Use<TestConverter>(c => c.Name);
-    //
-    //     // Act
-    //     var updatedConfig = baseConfig.Ignore(c => c.Name);
-    //
-    //     // Assert
-    //     baseConfig.PropertyConverters.Should().HaveCount(1); // Original remains unchanged
-    //     updatedConfig.IgnoredProperties.Should().Contain(nameof(TestData.Name));
-    // }
-
-
+  
 }

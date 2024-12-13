@@ -1,5 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 
+namespace FluentJsonConverter;
+
 internal class RulesContainer
 {
     private readonly Dictionary<string, PropertyRule> _rules;

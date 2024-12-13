@@ -1,8 +1,10 @@
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.CodeAnalysis;
-using System.Text;
-using Microsoft.CodeAnalysis.CSharp;
+
+namespace FluentJsonConverter;
 
 [Generator]
 public class FluentJsonConverterSourceGenerator : IIncrementalGenerator
@@ -69,35 +71,32 @@ public class FluentJsonConverterSourceGenerator : IIncrementalGenerator
 
         // Step 4: Use RulesParser to populate RulesContainer
         var semanticModel = compilation.GetSemanticModel(createFluentRulesMethod.DeclaringSyntaxReferences.First().SyntaxTree);
-        var rulesContainer = RulesParser.ParseRules(createFluentRulesMethod, semanticModel, allProperties);
+        var rulesContainer = RulesParser.ParseRules(createFluentRulesMethod, semanticModel, allProperties, context);
 
         // Step 5: Use CodeGenerator to create the Read method
         var readMethod = CodeGenerator.GenerateReadMethod(targetType.ToDisplayString(), rulesContainer);
+        var writeMethod = CodeGenerator.GenerateWriteMethod(targetType.ToDisplayString(), rulesContainer);
 
         // Step 6: Generate the complete converter code
-        var generatedCode = GenerateConverterClass(classSymbol, targetType, readMethod);
-        //var formattedCode = FormatCode(generatedCode);
+        var generatedCode = GenerateConverterClass(classSymbol, targetType, readMethod, writeMethod);
+        var formattedCode = FormatCode(generatedCode);
         // Step 7: Add the generated source to the context
-        context.AddSource($"{classSymbol.Name}_Generated.g.cs", SourceText.From(generatedCode, Encoding.UTF8));
+        context.AddSource($"{classSymbol.Name}_Generated.g.cs", SourceText.From(formattedCode, Encoding.UTF8));
     }
 
-    //private static string FormatCode(string code)
-    //{
-    //    // Parse the code into a SyntaxTree
-    //    var syntaxTree = CSharpSyntaxTree.ParseText(code);
-    //    var root = syntaxTree.GetRoot();
+    private static string FormatCode(string code)
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(code);
+        var root = syntaxTree.GetRoot();
 
-    //    // Create a Workspace to enable formatting
-    //    var workspace = new AdhocWorkspace();
+        // Walk the syntax tree to remove unnecessary spaces and align indentation
+        // Simplified formatting logic
+        var formattedCode = root.NormalizeWhitespace().ToFullString();
 
-    //    // Use Roslyn's Formatter to format the syntax tree
-    //    var formattedRoot = Formatter.Format(root, workspace);
+        return formattedCode;
+    }
 
-    //    // Convert the formatted syntax back to a string
-    //    return formattedRoot.ToFullString();
-    //}
-
-    private static string GenerateConverterClass(INamedTypeSymbol classSymbol, ITypeSymbol targetType, string readMethod)
+    private static string GenerateConverterClass(INamedTypeSymbol classSymbol, ITypeSymbol targetType, string readMethod, string writeMethod)
     {
         var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
             ? string.Empty
@@ -117,11 +116,7 @@ namespace {namespaceName}
     {{
         {readMethod}
 
-        public override void Write(Utf8JsonWriter writer, {targetTypeName} value, JsonSerializerOptions options)
-        {{
-            // TODO: Implement Write method
-            throw new NotImplementedException();
-        }}
+        {writeMethod}
     }}
 }}
 ";

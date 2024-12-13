@@ -1,43 +1,37 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!-- 👇 Source generators must target netstandard 2.0 -->
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <!-- 👇 We don't want to reference the source generator dll directly in consuming projects -->
-        <IncludeBuildOutput>false</IncludeBuildOutput>
-        <!-- 👇 New project, why not! -->
-        <Nullable>enable</Nullable>
+	    <TargetFramework>netstandard2.0</TargetFramework> <!-- Required for source generators -->
+	    <IncludeBuildOutput>false</IncludeBuildOutput> <!-- Prevents consumers from referencing the DLL -->
+	    <IsRoslynComponent>true</IsRoslynComponent> <!-- Marks it as a Roslyn component -->
+	    <GeneratePackageOnBuild>true</GeneratePackageOnBuild> <!-- Automatically creates a package on build -->
+	    <Nullable>enable</Nullable>
+	    <LangVersion>Latest</LangVersion>
         <ImplicitUsings>true</ImplicitUsings>
-        <LangVersion>Latest</LangVersion>
-        <IsRoslynComponent>true</IsRoslynComponent>
     </PropertyGroup>
+
+	<PropertyGroup>
+		<!-- NuGet Metadata -->
+		<PackageId>FluentJsonConverter</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>Bernhard Windisch</Authors>
+		<Description>A powerful source generator for configuring custom serialization rules for JSON properties using a fluent API. Supports default, custom converters, and inline logic.</Description>
+		<PackageTags>SourceGenerator;CSharp</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/windischb/FluentJsonConverter</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/windischb/FluentJsonConverter</PackageProjectUrl>
+	</PropertyGroup>
 
     <ItemGroup>
         <!-- Roslyn Analyzers and Code Analysis dependencies -->
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.12.0" />
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0" />
-
 		<PackageReference Include="System.Text.Json" Version="9.0.0" />
     </ItemGroup>
 
     <!-- This ensures the library will be packaged as a source generator when we use `dotnet pack` -->
     <ItemGroup>
         <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    </ItemGroup>
-    <ItemGroup>
-      <Compile Update="Properties\Resources.Designer.cs">
-        <DesignTime>True</DesignTime>
-        <AutoGen>True</AutoGen>
-        <DependentUpon>Resources.resx</DependentUpon>
-      </Compile>
-    </ItemGroup>
-    <ItemGroup>
-      <EmbeddedResource Update="Properties\Resources.resx">
-        <Generator>ResXFileCodeGenerator</Generator>
-        <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-      </EmbeddedResource>
     </ItemGroup>
     
 </Project>

@@ -4,6 +4,10 @@ using System.Text.Json.Serialization;
 
 namespace FluentJsonConverter;
 
+public interface IFluentJsonConverter<T>
+{
+    void CreateFluentRules(IFluentConverterRulesBuilder<T> rules);
+}
 public interface IFluentConverterRulesBuilder<T>
 {
     IFluentConverterRulesBuilder<T> ForProperty<TProperty>(
@@ -12,19 +16,16 @@ public interface IFluentConverterRulesBuilder<T>
 
     IFluentConverterRulesBuilder<T> Ignore<TProperty>(
         Expression<Func<T, TProperty>> propertyExpression);
-
-    IFluentConverterRulesBuilder<T> Include<TProperty>(
-        Expression<Func<T, TProperty>> propertyExpression);
-
+    
 }
 
-public delegate TProperty ReadDelegate<TProperty>(ref Utf8JsonReader reader);
+public delegate TProperty ReadDelegate<out TProperty>(ref Utf8JsonReader reader);
 
 public interface IPropertyConfigurator<T, TProperty>
 {
     IPropertyConfigurator<T, TProperty> UseConverter<TConverter>() where TConverter : JsonConverter<TProperty>;
     IPropertyConfigurator<T, TProperty> UseReadConverter<TConverter>() where TConverter : JsonConverter<TProperty>;
-    IPropertyConfigurator<T, TProperty> UseWriteConverter<TConverter>() where TConverter : JsonConverter;
+    IPropertyConfigurator<T, TProperty> UseWriteConverter<TConverter>() where TConverter : JsonConverter<TProperty>;
     IPropertyConfigurator<T, TProperty> Ignore();
     IPropertyConfigurator<T, TProperty> Rename(string newName);
 
